@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Evans GSM World - Inventory & POS System</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body {
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      width: 100%; max-width: 100%; overflow-x: hidden; margin: 0; padding: 0;
+      background-color: #f8fafc; color: #0f172a; -webkit-font-smoothing: antialiased;
+    }
+    .rolling-circle { animation: spinCircle 1.1s cubic-bezier(0.5, 0, 0.5, 1) infinite; }
+    @keyframes spinCircle { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    @media print {
+      body * { visibility: hidden; }
+      #receipt-modal-content, #receipt-modal-content * { visibility: visible; }
+      #receipt-modal-content { position: absolute; left: 0; top: 0; width: 100%; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-900 w-full max-w-full overflow-x-hidden">
+
+  <!-- ==================== AUTH / LOGIN PAGE ==================== -->
+  <div id="auth-container" class="fixed inset-0 z-50 bg-white flex flex-col justify-center items-center px-4 py-8 overflow-y-auto">
+    <div id="login-card" class="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-8 text-center shadow-xs">
+      <div class="mx-auto w-12 h-12 rounded-2xl bg-slate-900 flex items-center justify-center text-white mb-4 font-bold text-xl shadow-xs">E</div>
+      <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Evans GSM World</h1>
+      <p class="text-xs text-slate-500 mt-1 mb-6">Mobile Phone Spare Parts & Inventory System</p>
+
+      <div id="login-error" class="hidden mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium rounded-xl text-left">
+        Incorrect username or password.
+      </div>
+
+      <form id="login-form" class="space-y-4 text-left">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Username</label>
+          <input type="text" id="login-username" required class="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" placeholder="Enter username" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Password</label>
+          <input type="password" id="login-password" required class="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-900" placeholder="••••••••" />
+        </div>
+        <button type="submit" class="w-full py-3 bg-slate-900 hover:bg-black text-white rounded-xl text-sm font-semibold transition-colors shadow-xs">
+          Sign In to System
+        </button>
+      </form>
+    </div>
+
+    <!-- 4-Second Loading Screen -->
+    <div id="login-loader" class="hidden flex-col items-center justify-center text-center p-8">
+      <div class="relative w-16 h-16 flex items-center justify-center mb-4">
+        <div class="absolute inset-0 rounded-full border-4 border-slate-200"></div>
+        <div class="absolute inset-0 rounded-full border-4 border-transparent border-t-slate-900 rolling-circle"></div>
+      </div>
+      <h2 class="text-lg font-bold text-slate-900">Signing You In...</h2>
+      <p class="text-xs text-slate-500 mt-1">Loading Evans GSM World workspace</p>
+    </div>
+  </div>
+
+  <!-- ==================== MAIN APPLICATION LAYOUT ==================== -->
+  <div id="main-app" class="hidden min-h-screen flex-col w-full max-w-full overflow-x-hidden">
+
+    <!-- HEADER -->
+    <header class="sticky top-0 z-30 bg-white border-b border-slate-200 px-4 sm:px-6 py-3 w-full max-w-full">
+      <div class="max-w-7xl mx-auto flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">E</div>
+          <span className="text-base font-bold text-slate-900">Evans GSM World</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="switchTab('sales')" class="px-3 py-1.5 bg-slate-900 text-white rounded-xl text-xs font-semibold shadow-xs">
+            + New Sale
+          </button>
+          <button onclick="logout()" title="Log Out" class="p-2 text-slate-500 hover:text-rose-600 rounded-xl hover:bg-rose-50 transition-colors">
+            ✕
+          </button>
+        </div>
+      </div>
+
+      <!-- TABS NAV -->
+      <div class="max-w-7xl mx-auto mt-2 pt-2 border-t border-slate-100 flex items-center gap-1 overflow-x-auto no-scrollbar py-1">
+        <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap bg-slate-900 text-white">Dashboard</button>
+        <button onclick="switchTab('products')" id="nav-products" class="nav-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap text-slate-600 hover:bg-slate-100">Products & Stock</button>
+        <button onclick="switchTab('sales')" id="nav-sales" class="nav-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap text-slate-600 hover:bg-slate-100">Point of Sale (POS)</button>
+        <button onclick="switchTab('customers')" id="nav-customers" class="nav-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap text-slate-600 hover:bg-slate-100">Customers & Debts</button>
+        <button onclick="switchTab('expenses')" id="nav-expenses" class="nav-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap text-slate-600 hover:bg-slate-100">Shop Expenses</button>
+      </div>
+    </header>
+
+    <!-- CONTENT -->
+    <main class="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-6 overflow-x-hidden">
+
+      <!-- VIEW 1: DASHBOARD -->
+      <section id="view-dashboard" class="space-y-6">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+            <p class="text-xs font-semibold text-slate-500 uppercase">Total Sales</p>
+            <h3 id="dash-total-sales" class="text-xl font-bold text-slate-900 mt-1">₦0</h3>
+          </div>
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+            <p class="text-xs font-semibold text-slate-500 uppercase">Stock Valuation</p>
+            <h3 id="dash-stock-value" class="text-xl font-bold text-slate-900 mt-1">₦0</h3>
+          </div>
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+            <p class="text-xs font-semibold text-slate-500 uppercase">Customer Debts</p>
+            <h3 id="dash-total-debt" class="text-xl font-bold text-amber-600 mt-1">₦0</h3>
+          </div>
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+            <p class="text-xs font-semibold text-slate-500 uppercase">Shop Expenses</p>
+            <h3 id="dash-total-expenses" class="text-xl font-bold text-rose-600 mt-1">₦0</h3>
+          </div>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex items-center justify-between">
+          <div>
+            <h4 class="text-sm font-bold text-slate-900">Inventory Status</h4>
+            <p class="text-xs text-slate-500">Manage parts, record POS sales, and track debts.</p>
+          </div>
+          <button onclick="resetAllData()" class="px-3.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold rounded-xl border border-rose-200">Reset All Data</button>
+        </div>
+      </section>
+
+      <!-- VIEW 2: PRODUCTS & STOCK -->
+      <section id="view-products" class="hidden space-y-6">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">Products & Spare Parts Inventory</h2>
+            <p class="text-xs text-slate-500">Manage stock items, cost prices, and retail selling prices</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="openCsvModal()" class="px-3 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 text-xs font-semibold rounded-xl shadow-xs">Import CSV</button>
+            <button onclick="openProductModal()" class="px-3.5 py-2 bg-slate-900 hover:bg-black text-white text-xs font-semibold rounded-xl shadow-xs">+ Add Product</button>
+          </div>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-2xl p-3 shadow-xs flex gap-3">
+          <input type="text" id="prod-search" oninput="renderProducts()" placeholder="Search parts..." class="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white" />
+          <select id="prod-category-filter" onchange="renderProducts()" class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+            <option value="ALL">All Categories</option>
+            <option value="Screens / LCDs">Screens / LCDs</option>
+            <option value="Batteries">Batteries</option>
+            <option value="Charging Ports & Flex">Charging Ports & Flex</option>
+            <option value="Chargers & Cables">Chargers & Cables</option>
+            <option value="Other Accessories">Other Accessories</option>
+          </select>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead class="bg-slate-50 border-b border-slate-200 font-semibold text-slate-500">
+                <tr>
+                  <th class="p-3">Product Name</th>
+                  <th class="p-3">Category</th>
+                  <th class="p-3 text-right">Cost Price</th>
+                  <th class="p-3 text-right">Selling Price</th>
+                  <th class="p-3 text-center">In Stock</th>
+                  <th class="p-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="products-tbody" class="divide-y divide-slate-100">
+                <tr><td colspan="6" class="p-6 text-center text-slate-400">No products found. Click '+ Add Product' or 'Import CSV'.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 3: POINT OF SALE (POS) -->
+      <section id="view-sales" class="hidden space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          <div class="lg:col-span-7 space-y-3">
+            <input type="text" id="pos-search" oninput="renderPosCatalog()" placeholder="Search parts to sell..." class="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs" />
+            <div id="pos-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-3"></div>
+          </div>
+          <div class="lg:col-span-5 bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-4">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-800">Current Cart</h3>
+            <div id="pos-cart-list" class="space-y-2 max-h-56 overflow-y-auto text-xs">
+              <div class="text-center py-6 text-slate-400">Cart is empty. Select items on the left.</div>
+            </div>
+            <div class="pt-2 border-t border-slate-100 space-y-2 text-xs">
+              <label class="block font-semibold text-slate-700">Customer Name (Optional for Debt)</label>
+              <input type="text" id="pos-customer-name" placeholder="Walk-in Customer" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl" />
+            </div>
+            <div class="space-y-1 text-xs">
+              <label class="block font-semibold text-slate-700">Payment Method</label>
+              <select id="pos-payment-method" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl">
+                <option value="Cash">Cash</option>
+                <option value="Transfer">Bank Transfer</option>
+                <option value="POS">POS Card</option>
+                <option value="Credit">Credit / Debt</option>
+              </select>
+            </div>
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-between font-bold text-sm">
+              <span>Total Amount:</span>
+              <span id="pos-total-amount" class="text-lg">₦0</span>
+            </div>
+            <button onclick="checkoutSale()" id="btn-checkout" disabled class="w-full py-2.5 bg-slate-900 hover:bg-black disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-xs rounded-xl shadow-xs">
+              Complete Sale
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 4: CUSTOMERS & DEBTS -->
+      <section id="view-customers" class="hidden space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">Customers & Debt Tracking</h2>
+            <p class="text-xs text-slate-500">Track credit sales balances and repayments</p>
+          </div>
+          <button onclick="openCustomerModal()" class="px-3.5 py-2 bg-slate-900 hover:bg-black text-white text-xs font-semibold rounded-xl shadow-xs">+ Add Customer</button>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead class="bg-slate-50 border-b border-slate-200 font-semibold text-slate-500">
+              <tr>
+                <th class="p-3">Customer Name</th>
+                <th class="p-3">Phone</th>
+                <th class="p-3 text-right">Owed Balance</th>
+              </tr>
+            </thead>
+            <tbody id="customers-tbody" class="divide-y divide-slate-100">
+              <tr><td colspan="3" class="p-6 text-center text-slate-400">No customers registered yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- VIEW 5: EXPENSES -->
+      <section id="view-expenses" class="hidden space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">Shop Operating Expenses</h2>
+            <p class="text-xs text-slate-500">Record generator fuel, rent, and repairs</p>
+          </div>
+          <button onclick="openExpenseModal()" class="px-3.5 py-2 bg-slate-900 hover:bg-black text-white text-xs font-semibold rounded-xl shadow-xs">+ Record Expense</button>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead class="bg-slate-50 border-b border-slate-200 font-semibold text-slate-500">
+              <tr>
+                <th class="p-3">Description</th>
+                <th class="p-3">Category</th>
+                <th class="p-3 text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody id="expenses-tbody" class="divide-y divide-slate-100">
+              <tr><td colspan="3" class="p-6 text-center text-slate-400">No shop expenses recorded yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- ADD PRODUCT MODAL -->
+  <div id="modal-product" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-sm font-bold text-slate-900">Add New Product</h3>
+        <button onclick="closeModal('modal-product')" class="text-slate-400 p-1">✕</button>
+      </div>
+      <form id="form-product" onsubmit="saveProduct(event)" class="space-y-3 text-xs">
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Product / Part Name *</label>
+          <input type="text" id="prod-name" required placeholder="e.g. iPhone 11 LCD Screen" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl" />
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Category *</label>
+          <select id="prod-category" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl">
+            <option value="Screens / LCDs">Screens / LCDs</option>
+            <option value="Batteries">Batteries</option>
+            <option value="Charging Ports & Flex">Charging Ports & Flex</option>
+            <option value="Chargers & Cables">Chargers & Cables</option>
+            <option value="Other Accessories">Other Accessories</option>
+          </select>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Cost Price (₦) *</label>
+            <input type="number" id="prod-cost" required min="0" placeholder="5000" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl" />
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Selling Price (₦) *</label>
+            <input type="number" id="prod-price" required min="0" placeholder="8000" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl" />
+          </div>
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Quantity in Stock *</label>
+          <input type="number" id="prod-qty" required min="0" placeholder="10" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl" />
+        </div>
+        <div class="pt-3 flex justify-end gap-2">
+          <button type="button" onclick="closeModal('modal-product')" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl">Cancel</button>
+          <button type="submit" class="px-4 py-2 bg-slate-900 text-white rounded-xl font-bold">Save Product</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- CSV IMPORT MODAL -->
+  <div id="modal-csv" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-6 max-w-lg w-full shadow-xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-sm font-bold text-slate-900">Import Products from CSV File</h3>
+        <button onclick="closeModal('modal-csv')" class="text-slate-400 p-1">✕</button>
+      </div>
+      <div class="border-2 border-dashed border-slate-300 rounded-2xl p-8 text-center bg-slate-50">
+        <input type="file" id="csv-file-input" accept=".csv" onchange="handleCsvFile(event)" class="hidden" />
+        <button onclick="document.getElementById('csv-file-input').click()" class="px-4 py-2 bg-slate-900 text-white text-xs font-bold rounded-xl shadow-xs">
+          Select CSV File
+        </button>
+        <p class="text-xs text-slate-400 mt-2">Select a .csv file containing Product Name, Category, Cost, Price, Quantity</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- CUSTOMER MODAL -->
+  <div id="modal-customer" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl space-y-4 text-xs">
+      <h3 class="font-bold text-slate-900">Add Customer</h3>
+      <form onsubmit="saveCustomer(event)" class="space-y-3">
+        <input type="text" id="cust-name" required placeholder="Customer Name" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl" />
+        <input type="text" id="cust-phone" placeholder="Phone Number" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl" />
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeModal('modal-customer')" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl">Cancel</button>
+          <button type="submit" class="px-4 py-2 bg-slate-900 text-white rounded-xl font-bold">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- EXPENSE MODAL -->
+  <div id="modal-expense" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl space-y-4 text-xs">
+      <h3 class="font-bold text-slate-900">Record Shop Expense</h3>
+      <form onsubmit="saveExpense(event)" class="space-y-3">
+        <input type="text" id="exp-desc" required placeholder="Expense Description (e.g. Generator Fuel)" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl" />
+        <select id="exp-cat" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl">
+          <option value="Generator Fuel & Power">Generator Fuel & Power</option>
+          <option value="Shop Rent & Space">Shop Rent & Space</option>
+          <option value="Logistics & Transport">Logistics & Transport</option>
+          <option value="Shop Maintenance & Repairs">Shop Maintenance & Repairs</option>
+          <option value="Miscellaneous">Miscellaneous</option>
+        </select>
+        <input type="number" id="exp-amount" required min="1" placeholder="Amount (₦)" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl" />
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeModal('modal-expense')" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl">Cancel</button>
+          <button type="submit" class="px-4 py-2 bg-slate-900 text-white rounded-xl font-bold">Save Expense</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT LOGIC -->
+  <script>
+    const STORAGE_KEY = 'evans_gsm_single_html_v1';
+
+    let appData = {
+      products: [],
+      sales: [],
+      customers: [],
+      expenses: []
+    };
+
+    let posCart = [];
+
+    function initData() {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          appData = JSON.parse(stored);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function saveData() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function formatNaira(num) {
+      return '₦' + Number(num || 0).toLocaleString('en-NG');
+    }
+
+    // Login logic
+    document.getElementById('login-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const user = document.getElementById('login-username').value.trim();
+      const pass = document.getElementById('login-password').value.trim();
+
+      if (user.toLowerCase() === 'admin' && pass === 'admin123') {
+        document.getElementById('login-card').classList.add('hidden');
+        document.getElementById('login-loader').classList.remove('hidden');
+        document.getElementById('login-loader').classList.add('flex');
+
+        setTimeout(() => {
+          document.getElementById('auth-container').classList.add('hidden');
+          document.getElementById('main-app').classList.remove('hidden');
+          document.getElementById('main-app').classList.add('flex');
+          renderAll();
+        }, 3000);
+      } else {
+        document.getElementById('login-error').classList.remove('hidden');
+      }
+    });
+
+    function logout() {
+      document.getElementById('main-app').classList.add('hidden');
+      document.getElementById('main-app').classList.remove('flex');
+      document.getElementById('auth-container').classList.remove('hidden');
+      document.getElementById('login-loader').classList.add('hidden');
+      document.getElementById('login-card').classList.remove('hidden');
+      document.getElementById('login-username').value = '';
+      document.getElementById('login-password').value = '';
+    }
+
+    function switchTab(tabName) {
+      ['dashboard', 'products', 'sales', 'customers', 'expenses'].forEach(t => {
+        document.getElementById(`view-${t}`).classList.add('hidden');
+        document.getElementById(`nav-${t}`).className = 'nav-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap text-slate-600 hover:bg-slate-100';
+      });
+      document.getElementById(`view-${tabName}`).classList.remove('hidden');
+      document.getElementById(`nav-${tabName}`).className = 'nav-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap bg-slate-900 text-white';
+      renderAll();
+    }
+
+    function openModal(id) { document.getElementById(id).classList.remove('hidden'); document.getElementById(id).classList.add('flex'); }
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); document.getElementById(id).classList.remove('flex'); }
+
+    function openProductModal() { openModal('modal-product'); }
+    function openCsvModal() { openModal('modal-csv'); }
+    function openCustomerModal() { openModal('modal-customer'); }
+    function openExpenseModal() { openModal('modal-expense'); }
+
+    function saveProduct(e) {
+      e.preventDefault();
+      const name = document.getElementById('prod-name').value.trim();
+      const category = document.getElementById('prod-category').value;
+      const purchasePrice = Number(document.getElementById('prod-cost').value);
+      const sellingPrice = Number(document.getElementById('prod-price').value);
+      const quantity = Number(document.getElementById('prod-qty').value);
+
+      appData.products.unshift({
+        id: 'p-' + Date.now(),
+        name, category, purchasePrice, sellingPrice, quantity
+      });
+
+      saveData();
+      closeModal('modal-product');
+      document.getElementById('form-product').reset();
+      renderAll();
+    }
+
+    function handleCsvFile(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const text = evt.target.result;
+        const lines = text.split(/\r\n|\n/);
+        let count = 0;
+
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+          const parts = line.split(',');
+          if (parts[0]) {
+            appData.products.unshift({
+              id: 'p-' + Date.now() + '-' + i,
+              name: parts[0].replace(/"/g, '').trim(),
+              category: parts[1] ? parts[1].replace(/"/g, '').trim() : 'Other Accessories',
+              purchasePrice: Number(parts[2]) || 0,
+              sellingPrice: Number(parts[3]) || 0,
+              quantity: Number(parts[4]) || 0
+            });
+            count++;
+          }
+        }
+        saveData();
+        closeModal('modal-csv');
+        renderAll();
+        alert(`Successfully imported ${count} products from CSV.`);
+      };
+      reader.readAsText(file);
+    }
+
+    function saveCustomer(e) {
+      e.preventDefault();
+      const name = document.getElementById('cust-name').value.trim();
+      const phone = document.getElementById('cust-phone').value.trim();
+      appData.customers.push({ id: 'c-' + Date.now(), name, phone, totalOwed: 0 });
+      saveData();
+      closeModal('modal-customer');
+      renderAll();
+    }
+
+    function saveExpense(e) {
+      e.preventDefault();
+      const description = document.getElementById('exp-desc').value.trim();
+      const category = document.getElementById('exp-cat').value;
+      const amount = Number(document.getElementById('exp-amount').value);
+      appData.expenses.unshift({ id: 'e-' + Date.now(), description, category, amount });
+      saveData();
+      closeModal('modal-expense');
+      renderAll();
+    }
+
+    function addToCart(pId) {
+      const prod = appData.products.find(p => p.id === pId);
+      if (!prod || prod.quantity <= 0) return;
+      const existing = posCart.find(c => c.id === pId);
+      if (existing) {
+        if (existing.qty < prod.quantity) existing.qty++;
+      } else {
+        posCart.push({ id: pId, name: prod.name, price: prod.sellingPrice, qty: 1 });
+      }
+      renderCart();
+    }
+
+    function renderCart() {
+      const container = document.getElementById('pos-cart-list');
+      if (posCart.length === 0) {
+        container.innerHTML = '<div class="text-center py-6 text-slate-400">Cart is empty. Select items on the left.</div>';
+        document.getElementById('pos-total-amount').innerText = '₦0';
+        document.getElementById('btn-checkout').disabled = true;
+        return;
+      }
+
+      let total = 0;
+      container.innerHTML = posCart.map(item => {
+        total += item.price * item.qty;
+        return `
+          <div class="flex items-center justify-between p-2 bg-slate-50 rounded-lg">
+            <div>
+              <div class="font-bold text-slate-800">${item.name}</div>
+              <div class="text-[11px] text-slate-500">${formatNaira(item.price)} × ${item.qty}</div>
+            </div>
+            <div class="font-bold text-slate-900">${formatNaira(item.price * item.qty)}</div>
+          </div>
+        `;
+      }).join('');
+
+      document.getElementById('pos-total-amount').innerText = formatNaira(total);
+      document.getElementById('btn-checkout').disabled = false;
+    }
+
+    function checkoutSale() {
+      if (posCart.length === 0) return;
+      const method = document.getElementById('pos-payment-method').value;
+      const custName = document.getElementById('pos-customer-name').value.trim();
+
+      let totalAmount = 0;
+      posCart.forEach(item => {
+        totalAmount += item.price * item.qty;
+        const prod = appData.products.find(p => p.id === item.id);
+        if (prod) prod.quantity = Math.max(0, prod.quantity - item.qty);
+      });
+
+      if (method === 'Credit' && custName) {
+        let cust = appData.customers.find(c => c.name.toLowerCase() === custName.toLowerCase());
+        if (!cust) {
+          cust = { id: 'c-' + Date.now(), name: custName, phone: '', totalOwed: 0 };
+          appData.customers.push(cust);
+        }
+        cust.totalOwed += totalAmount;
+      }
+
+      appData.sales.unshift({
+        id: 's-' + Date.now(),
+        totalAmount,
+        paymentMethod: method,
+        customerName: custName || 'Walk-in'
+      });
+
+      posCart = [];
+      saveData();
+      renderAll();
+      renderCart();
+      alert('Sale completed successfully!');
+    }
+
+    function resetAllData() {
+      if (confirm('Clear all local data and reset workspace?')) {
+        appData = { products: [], sales: [], customers: [], expenses: [] };
+        posCart = [];
+        saveData();
+        renderAll();
+      }
+    }
+
+    function renderAll() {
+      // Dash
+      const salesTotal = appData.sales.reduce((a, b) => a + b.totalAmount, 0);
+      const stockVal = appData.products.reduce((a, b) => a + (b.quantity * b.purchasePrice), 0);
+      const debtTotal = appData.customers.reduce((a, b) => a + b.totalOwed, 0);
+      const expTotal = appData.expenses.reduce((a, b) => a + b.amount, 0);
+
+      document.getElementById('dash-total-sales').innerText = formatNaira(salesTotal);
+      document.getElementById('dash-stock-value').innerText = formatNaira(stockVal);
+      document.getElementById('dash-total-debt').innerText = formatNaira(debtTotal);
+      document.getElementById('dash-total-expenses').innerText = formatNaira(expTotal);
+
+      renderProducts();
+      renderPosCatalog();
+      renderCustomers();
+      renderExpenses();
+    }
+
+    function renderProducts() {
+      const query = (document.getElementById('prod-search')?.value || '').toLowerCase();
+      const cat = document.getElementById('prod-category-filter')?.value || 'ALL';
+
+      const filtered = appData.products.filter(p => {
+        const matchesQuery = p.name.toLowerCase().includes(query);
+        const matchesCat = cat === 'ALL' || p.category === cat;
+        return matchesQuery && matchesCat;
+      });
+
+      const tbody = document.getElementById('products-tbody');
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-slate-400">No products found.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(p => `
+        <tr class="hover:bg-slate-50">
+          <td class="p-3 font-semibold text-slate-900">${p.name}</td>
+          <td class="p-3 text-slate-600">${p.category}</td>
+          <td class="p-3 text-right font-mono">${formatNaira(p.purchasePrice)}</td>
+          <td class="p-3 text-right font-mono font-semibold">${formatNaira(p.sellingPrice)}</td>
+          <td class="p-3 text-center font-mono font-bold">${p.quantity}</td>
+          <td class="p-3 text-right">
+            <button onclick="addToCart('${p.id}')" class="px-2.5 py-1 bg-slate-900 text-white rounded-lg font-bold text-[11px]">Sell</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function renderPosCatalog() {
+      const query = (document.getElementById('pos-search')?.value || '').toLowerCase();
+      const grid = document.getElementById('pos-grid');
+
+      const filtered = appData.products.filter(p => p.name.toLowerCase().includes(query) && p.quantity > 0);
+
+      if (filtered.length === 0) {
+        grid.innerHTML = '<div class="col-span-full py-8 text-center text-slate-400 text-xs">No available products in stock.</div>';
+        return;
+      }
+
+      grid.innerHTML = filtered.map(p => `
+        <div onclick="addToCart('${p.id}')" class="bg-white border border-slate-200 hover:border-slate-400 p-3 rounded-xl cursor-pointer shadow-2xs transition-colors">
+          <div class="font-bold text-slate-900 text-xs truncate">${p.name}</div>
+          <div class="text-[11px] text-slate-500 mt-0.5">${p.category}</div>
+          <div class="mt-2 flex items-center justify-between text-xs">
+            <span class="font-mono font-bold text-slate-900">${formatNaira(p.sellingPrice)}</span>
+            <span class="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded font-bold">${p.quantity} left</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderCustomers() {
+      const tbody = document.getElementById('customers-tbody');
+      if (appData.customers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="p-6 text-center text-slate-400">No customers registered yet.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = appData.customers.map(c => `
+        <tr class="hover:bg-slate-50">
+          <td class="p-3 font-semibold text-slate-900">${c.name}</td>
+          <td class="p-3 text-slate-600">${c.phone || '—'}</td>
+          <td class="p-3 text-right font-mono font-bold text-rose-600">${formatNaira(c.totalOwed)}</td>
+        </tr>
+      `).join('');
+    }
+
+    function renderExpenses() {
+      const tbody = document.getElementById('expenses-tbody');
+      if (appData.expenses.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="p-6 text-center text-slate-400">No expenses recorded yet.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = appData.expenses.map(e => `
+        <tr class="hover:bg-slate-50">
+          <td class="p-3 font-semibold text-slate-900">${e.description}</td>
+          <td class="p-3 text-slate-600">${e.category}</td>
+          <td class="p-3 text-right font-mono font-bold text-slate-900">${formatNaira(e.amount)}</td>
+        </tr>
+      `).join('');
+    }
+
+    // Initialize on page load
+    initData();
+  </script>
+</body>
+</html>
